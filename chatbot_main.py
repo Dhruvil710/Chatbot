@@ -216,3 +216,4 @@ if __name__ == "__main__":
     run_assistant()
 
 
+print("hello world")
