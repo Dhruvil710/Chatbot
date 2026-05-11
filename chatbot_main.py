@@ -15,7 +15,6 @@ load_dotenv()
 
 langfuse_handler = CallbackHandler()
 
-# --- LONG TERM MEMORY STORAGE (Simple JSON implementation) ---
 PROFILE_FILE = "user_profile.json"
 
 def save_profile(profile_data):
@@ -28,7 +27,6 @@ def load_profile():
             return json.load(f)
     return {}
 
-# --- NEW PREFERENCE TOOL ---
 @tool
 def update_user_profile(key: str, value: str):
     """Saves user preferences like name, favorite food, seat temperature, or home address."""
@@ -131,7 +129,7 @@ def calendar_delete_event(title: str):
 SAFE_TOOLS = [
     get_battery_status, get_vehicle_health, discover_places, 
     get_route, radio_control, spotify_control, calendar_search,
-    update_user_profile # Added to safe tools
+    update_user_profile # Added to safe toolsc
 ]
 
 SENSITIVE_TOOLS = [
