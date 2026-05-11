@@ -1,4 +1,5 @@
 import os
+import json
 from typing import TypedDict, Annotated
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
@@ -12,8 +13,29 @@ from langfuse.langchain import CallbackHandler
 
 load_dotenv()
 
-
 langfuse_handler = CallbackHandler()
+
+# --- LONG TERM MEMORY STORAGE (Simple JSON implementation) ---
+PROFILE_FILE = "user_profile.json"
+
+def save_profile(profile_data):
+    with open(PROFILE_FILE, "w") as f:
+        json.dump(profile_data, f)
+
+def load_profile():
+    if os.path.exists(PROFILE_FILE):
+        with open(PROFILE_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+# --- NEW PREFERENCE TOOL ---
+@tool
+def update_user_profile(key: str, value: str):
+    """Saves user preferences like name, favorite food, seat temperature, or home address."""
+    profile = load_profile()
+    profile[key] = value
+    save_profile(profile)
+    return f"I've remembered your {key} is {value}."
 
 class Chatstate(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
@@ -105,9 +127,11 @@ def calendar_delete_event(title: str):
     return {"status": f"Error: No event found with the name '{title}'."}
 
 
+# UPDATE TOOL LISTS
 SAFE_TOOLS = [
     get_battery_status, get_vehicle_health, discover_places, 
-    get_route, radio_control, spotify_control, calendar_search
+    get_route, radio_control, spotify_control, calendar_search,
+    update_user_profile # Added to safe tools
 ]
 
 SENSITIVE_TOOLS = [
@@ -127,10 +151,16 @@ llm = ChatOpenAI(
 llm_with_tools = llm.bind_tools(SAFE_TOOLS + SENSITIVE_TOOLS)
 
 def assistant_node(state: Chatstate):
+    # Fetch Long-Term Memory
+    user_prefs = load_profile()
+    prefs_context = f"User Preferences: {json.dumps(user_prefs)}" if user_prefs else "No previous preferences stored."
+
     sys_msg = SystemMessage(content=(
         "You are an advanced Audi AI Assistant. You help with Navigation, Calls, "
         "Calendar, Media, and Vehicle settings. Trigger tools directly. "
-        "Sensitive actions (calls, emails, reservations, sunroof) will be confirmed by the system."
+        "Sensitive actions (calls, emails, reservations, sunroof) will be confirmed by the system. "
+        f"CONTEXT FROM PREVIOUS CONVERSATIONS: {prefs_context}. "
+        "If a user tells you their name or a preference, use the update_user_profile tool."
     ))
     response = llm_with_tools.invoke([sys_msg] + state["messages"])
     return {"messages": [response]}
@@ -145,7 +175,7 @@ def should_continue(state: Chatstate):
     
     return "sensitive_tools" if tool_name in sensitive_names else "safe_tools"
 
-#WORKFLOW 
+# WORKFLOW 
 workflow = StateGraph(Chatstate)
 workflow.add_node("assistant", assistant_node)
 workflow.add_node("safe_tools", safe_tool_node)
@@ -170,7 +200,7 @@ def run_assistant():
         "callbacks": [langfuse_handler]
     }
     
-    print("\n--- Audi Assistant Active (Monitoring: Langfuse Enabled) ---")
+    print("\n--- Audi Assistant Active (Long-Term Memory Enabled) ---")
 
     while True:
         user_input = input("\nDriver: ")
@@ -214,6 +244,3 @@ def run_assistant():
 
 if __name__ == "__main__":
     run_assistant()
-
-
-
